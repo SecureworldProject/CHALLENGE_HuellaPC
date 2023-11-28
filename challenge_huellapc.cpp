@@ -1,5 +1,4 @@
 /////  FILE INCLUDES  /////
-#pragma comment(lib, "Netapi32.lib")
 #include "pch.h"
 #include "context_challenge.h"
 #include "json.h"
@@ -9,25 +8,35 @@
 #include <tchar.h>
 #include <string>
 #include <psapi.h>
-#include <cstdlib>
-#include <lm.h>
 #include <iostream>
+#include <sstream>
+#include <locale>
+#include <codecvt>
+#include <TlHelp32.h>
+
 
 
 /////  DEFINITIONS  /////
-#define CHPRINT(...) do { printf("CHALLENGE_INTRANET --> "); printf(__VA_ARGS__); } while (0)
-#define ERRCHPRINT(...) do { fprintf(stderr, "ERROR in CHALLENGE_INTRANET --> "); fprintf(stderr, __VA_ARGS__); } while (0)
+#define CHPRINT(...) do { printf("CHALLENGE_HUELLAPC --> "); printf(__VA_ARGS__); } while (0)
+#define ERRCHPRINT(...) do { fprintf(stderr, "ERROR in CHALLENGE_HUELLAPC --> "); fprintf(stderr, __VA_ARGS__); } while (0)
 
 /////  GLOBAL VARIABLES  /////
 char** programs = NULL;
+const char* expectedDomain = NULL;
+const char* expectedSufix = NULL;
+const char* expectedWebex = NULL;
+const char* expectedFont = NULL;
+const int COMPUTERNAME_LENGTH = 30;
 
 /////  FUNCTION DEFINITIONS  /////
 void getChallengeParameters();
-int checkDomain(const TCHAR* dominioEsperado);
-int checkPCName(const TCHAR* sufijoEsperado);
+int checkDomain(const char * expectedValue);
+int checkPCName(const char * expectedValue);
+int checkWebex(const char * expectedValue);
+int checkFont(const char * expectedValue);
 int checkProgs(char** programs, int numPrograms);
-int checkUser(const TCHAR* usuarioEsperado);
-int checkWorkgroup(const TCHAR * grupoEsperado);
+std::wstring convertToWideString(const std::string & narrowStr);
+char* createResult(int a, int b, int c, int d, int e);
 
 /////  FUNCTION IMPLEMENTATIONS  /////
 int init(struct ChallengeEquivalenceGroup* group_param, struct Challenge* challenge_param) {
@@ -57,52 +66,53 @@ int init(struct ChallengeEquivalenceGroup* group_param, struct Challenge* challe
 }
 
 int executeChallenge() {
-    const TCHAR* dominioEsperado = _T("nsn-intra.net");
-    const TCHAR* sufijoEsperado = _T("nsn-intra.net");
-    int numPrograms = _msize(programs) / sizeof(char*);
-    const TCHAR* usuarioEsperado = _T("guerrero");
-    const TCHAR* grupoEsperado = _T("NSN-INTRA");
 
-    byte* key_data = NULL;
+    int numPrograms = _msize(programs) / sizeof(char*);
+
     size_t size_of_key = 0;
     time_t new_expiration_time = 0;
+    char* result;
     CHPRINT("Execute (%ws)\n", challenge->file_name);
     if (group == NULL || challenge == NULL)	return -1;
 
-    int resultadoRegistro = checkDomain(dominioEsperado);
+    int resultDomain = checkDomain(expectedDomain);
+    int resultPCName = checkPCName(expectedSufix);
+    int resultProgs = checkProgs(programs, numPrograms);
+    int resultWebex = checkWebex(expectedWebex);
+    int resultFont = checkFont(expectedFont);
+ 
+    // Prepare the key before the critical section, so it is as small as possible
+    result = createResult(resultDomain, resultPCName, resultProgs, resultWebex, resultFont);
+    printf("result: %s\n", result);
 
-    int resultadoNombreCompleto = checkPCName(sufijoEsperado);
+    int new_size = strlen(result) * sizeof(char);
 
-    int resultadoProgramas = checkProgs(programs, numPrograms);
+    byte* new_key_data = (byte*)malloc(strlen(result) * sizeof(char));
+    if (new_key_data == NULL)
+        return -1;
 
-    int resultadoUsuario = checkUser(usuarioEsperado);
-
-    int resultadoGrupoTrabajo = checkWorkgroup(grupoEsperado);
-
-    if (resultadoRegistro && resultadoNombreCompleto && resultadoProgramas && resultadoUsuario && resultadoGrupoTrabajo) {
-        _tprintf(_T("The computer and the user meet all the expected criteria.\n"));
+    if (0 != memcpy_s(new_key_data, new_size, result, strlen(result))) {
+        free(new_key_data);
+        return -1;
     }
-    else {
-        _tprintf(_T("The computer or the user does not meet one or more of the expected criteria or the necessary information could not be accessed.\n"));
-    }
 
-    // Prepare the key before the critical section, so it is as smmall as possible
-    size_of_key = NULL;
-    key_data = NULL;
-    new_expiration_time = time(NULL) + validity_time;
+    time_t new_expires = time(NULL) + validity_time;
 
-    //CHPRINT(" --- ENTERING CRITICAL SECTION --- \n");
+    // Imprimir los valores
+    printf("new_size: %zu\n", new_size);
+    printf("new_key_data: %s\n", new_key_data);
+    
+    // Update KeyData inside critical section
     EnterCriticalSection(&(group->subkey->critical_section));
-    if (group->subkey->data != NULL) {
-        free(group->subkey->data);
+    if ((group->subkey)->data != NULL) {
+        free((group->subkey)->data);
     }
-    group->subkey->data = key_data;
-    group->subkey->size = size_of_key;
-    group->subkey->expires = new_expiration_time;
+    group->subkey->data = new_key_data;
+    group->subkey->expires = new_expires;
+    group->subkey->size = new_size;
     LeaveCriticalSection(&(group->subkey->critical_section));
-    //CHPRINT(" --- LEAVING CRITICAL SECTION --- \n");
 
-    return 0;
+    return 0;	// Always 0 means OK.
 }
 
 void getChallengeParameters() {
@@ -129,11 +139,29 @@ void getChallengeParameters() {
             CHPRINT(" * Property: refresh_time\n");
             CHPRINT("     - Value: %d\n", refresh_time);
         }
+        else if (strcmp(prop_i.name, "domain") == 0) {
+            expectedDomain = prop_i.value->u.string.ptr;
+            CHPRINT(" * Property: domain\n");
+            CHPRINT("     - Value: %s\n", expectedDomain);
+        }
+        else if (strcmp(prop_i.name, "sufix") == 0) {
+            expectedSufix = (prop_i.value->u.string.ptr);
+            CHPRINT(" * Property: sufix\n");
+            CHPRINT("     - Value: %s\n", expectedSufix);
+        }
+        else if (strcmp(prop_i.name, "webex") == 0) {
+            expectedWebex = (prop_i.value->u.string.ptr);
+            CHPRINT(" * Property: webex\n");
+            CHPRINT("     - Value: %s\n", expectedWebex);
+        }
+        else if (strcmp(prop_i.name, "font") == 0) {
+            expectedFont = (prop_i.value->u.string.ptr);
+            CHPRINT(" * Property: font\n");
+            CHPRINT("     - Value: %s\n", expectedFont);
+        }
         else {
             // Challenge specific parameters (none)
             if (strcmp(prop_i.name, "programs") == 0) {
-                // Be careful when adding servers outside the intranet. Servers of those URLs could be down for any reason which would lead to a change in the challenge subkey
-                // Could be useful if the URLs are of essential services inside the enterprise intranet
                 jv_programs = prop_i.value;
                 num_programs = jv_programs->u.array.length;
                 CHPRINT(" * Property: programs (a total of %d)\n", num_programs);
@@ -158,121 +186,201 @@ void getChallengeParameters() {
     }
 }
 
-int checkDomain(const TCHAR* dominioEsperado) {
+int checkDomain(const char* expectedValue) {
     HKEY hKey;
-    TCHAR domainName[MAX_PATH];
+    WCHAR domainName[MAX_PATH];
     DWORD size = sizeof(domainName);
+    LONG result;
+
+    // Convertir expectedValue a cadena de caracteres anchos (wchar_t)
+    std::wstring wExpectedValue = convertToWideString(expectedValue);
 
     // Abrir la clave del registro para leer el nombre del dominio
-    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters"), 0, KEY_QUERY_VALUE, &hKey) == ERROR_SUCCESS) {
-        if (RegQueryValueEx(hKey, _T("Domain"), NULL, NULL, (LPBYTE)domainName, &size) == ERROR_SUCCESS) {
-            if (_tcscmp(domainName, dominioEsperado) == 0) {
+    result = RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters"), 0, KEY_QUERY_VALUE, &hKey);
+
+    if (result == ERROR_SUCCESS) {
+        result = RegQueryValueEx(hKey, _T("Domain"), NULL, NULL, (LPBYTE)domainName, &size);
+        if (result == ERROR_SUCCESS) {
+            if (wcscmp(domainName, wExpectedValue.c_str()) == 0) {
+                std::wcout << L"El dominio coincide: " << domainName << std::endl;
                 RegCloseKey(hKey);
-                return 1; 
+                return 1;
+            }
+            else {
+                std::wcout << L"El dominio no coincide. Valor actual: " << domainName << std::endl;
             }
         }
-
-        RegCloseKey(hKey);
+        else {
+            std::wcerr << L"Error al leer el valor de la clave de Domain: " << result << std::endl;
+        }
+        RegCloseKey(hKey);    }
+    else {
+        std::wcerr << L"Error al abrir la clave de Domain en el Registro: " << result << std::endl;
     }
-    return 0; 
+    return 0;
 }
 
-int checkPCName(const TCHAR* sufijoEsperado) {
-    TCHAR computerName[MAX_COMPUTERNAME_LENGTH + 1];
+int checkPCName(const char* expectedValue) {
+    WCHAR computerName[COMPUTERNAME_LENGTH + 1];
     DWORD size = sizeof(computerName);
 
-    if (GetComputerNameEx(ComputerNameDnsFullyQualified, computerName, &size)) {
-        if (_tcsstr(computerName, sufijoEsperado) != NULL) {
+    // Convertir expectedValue a cadena de caracteres anchos (wchar_t)
+    std::wstring wExpectedValue = convertToWideString(expectedValue);
+
+    if (GetComputerNameExW(ComputerNameDnsFullyQualified, computerName, &size)) {
+        if (wcsstr(computerName, wExpectedValue.c_str()) != nullptr) {
+            wprintf(L"El nombre coincide: %ls\n", computerName);
             return 1;
+        }
+        else {
+            wprintf(L"El nombre no coincide. Valor actual: %ls\n", computerName);
         }
     }
     return 0; 
 }
 
 int checkProgs(char** programs, int numPrograms) {
-    DWORD processes[1024];
-    DWORD numProcesses;
-    if (!EnumProcesses(processes, sizeof(processes), &numProcesses)) {
+
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+    if (hSnapshot == INVALID_HANDLE_VALUE) {
+        std::wcerr << L"Error creating process snapshot." << std::endl;
         return 0;
     }
 
     int* programasEncontrados = (int*)malloc(numPrograms * sizeof(int));
     memset(programasEncontrados, 0, numPrograms * sizeof(int));
 
-    for (DWORD i = 0; i < numProcesses / sizeof(DWORD); i++) {
-        WCHAR szProcessName[MAX_PATH];
-        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processes[i]);
+    PROCESSENTRY32 pe32;
+    pe32.dwSize = sizeof(PROCESSENTRY32);
 
-        if (hProcess != NULL) {
-            if (GetModuleBaseNameW(hProcess, NULL, szProcessName, sizeof(szProcessName) / sizeof(WCHAR))) {
-                for (int j = 0; j < numPrograms; j++) {
-                    WCHAR wProgramName[MAX_PATH];
-                    mbstowcs_s(NULL, wProgramName, programs[j], _TRUNCATE);
+    if (Process32First(hSnapshot, &pe32)) {
+        do {
+            for (int j = 0; j < numPrograms; j++) {
+                std::wstring wProgramName = convertToWideString(programs[j]);
 
-                    if (_wcsicmp(szProcessName, wProgramName) == 0) {
-                        CloseHandle(hProcess);
-                        programasEncontrados[j] = 1;
-                        break;
-                    }
+                if (_wcsicmp(pe32.szExeFile, wProgramName.c_str()) == 0) {
+                    programasEncontrados[j] = 1;
+                    break;
                 }
             }
-            CloseHandle(hProcess);
-        }
+        } while (Process32Next(hSnapshot, &pe32));
     }
 
+    CloseHandle(hSnapshot);
+
+    int numEncontrados = 0;
     for (int i = 0; i < numPrograms; i++) {
         if (!programasEncontrados[i]) {
-            wprintf(L"Program not found: %s\n", programs[i]);
+            std::wcout << L"Program not found: " << convertToWideString(programs[i]) << std::endl;
             free(programasEncontrados);
             return 0;
         }
+        else {
+            numEncontrados++;
+        }
     }
-    wprintf(L"All programs found.\n");
+
+    std::wcout << L"All programs found." << std::endl;
     free(programasEncontrados);
-    return 1;
+    return numEncontrados;
 }
 
-int checkWorkgroup(const TCHAR* grupoEsperado) {
+int checkFont(const char* valueName) {
     HKEY hKey;
-    LPCTSTR subkey = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComputerName");
-    LPCTSTR valueName = _T("Workgroup");
+    LONG result;
 
-    if (RegOpenKeyEx(HKEY_CURRENT_USER, subkey, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        TCHAR workgroup[MAX_PATH];
-        DWORD bufferSize = sizeof(workgroup);
+    // Abrir la clave del registro para leer los valores de las fuentes
+    result = RegOpenKeyEx(HKEY_CURRENT_USER, _T("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"), 0, KEY_QUERY_VALUE, &hKey);
 
-        if (RegQueryValueEx(hKey, valueName, NULL, NULL, reinterpret_cast<LPBYTE>(workgroup), &bufferSize) == ERROR_SUCCESS) {
-            if (_tcscmp(grupoEsperado, workgroup) == 0) {
-                std::wcout << L"The working group is in line with expectations: " << workgroup << std::endl;
-                RegCloseKey(hKey);
-                return 1; 
-            }
-            else {
-                std::wcout << L"The working group does not match the expected one. Current group: " << workgroup << std::endl;
-            }
+    if (result == ERROR_SUCCESS) {
+        // Intentar leer el valor específico
+        DWORD valueType;
+        BYTE valueData[MAX_PATH];
+        DWORD dataSize = sizeof(valueData);
+
+        std::wstring wValueName = convertToWideString(valueName);
+
+        result = RegQueryValueEx(hKey, wValueName.c_str(), nullptr, &valueType, valueData, &dataSize);
+
+        if (result == ERROR_SUCCESS) {
+            std::wcout << L"El valor " << valueName << L" existe en la clave del Registro de fuentes." << std::endl;
+            return 1;
+        }
+        else if (result == ERROR_FILE_NOT_FOUND) {
+            std::wcout << L"El valor " << valueName << L" no existe en la clave del Registro de fuentes." << std::endl;
         }
         else {
-            std::wcout << L"No information could be obtained from the working group." << std::endl;
+            std::wcerr << L"Error al leer el valor de la clave de fuentes: " << result << std::endl;
         }
 
         RegCloseKey(hKey);
     }
     else {
-        std::wcout << L"The registry key could not be opened." << std::endl;
+        std::wcerr << L"Error al abrir la clave de fuentes en el Registro: " << result << std::endl;
     }
 
     return 0;
 }
 
-int checkUser(const TCHAR* usuarioEsperado) {
-    TCHAR userName[MAX_PATH];
-    DWORD size = sizeof(userName);
+int checkWebex(const char* expectedValue) {
+    HKEY hKey;
+    TCHAR webexValue[MAX_PATH];
+    DWORD size = sizeof(webexValue);
+    LONG result;
 
-    if (GetUserName(userName, &size)) {
-        if (_tcscmp(userName, usuarioEsperado) == 0) {
-            return 1;
+    // Convertir expectedValue a cadena de caracteres anchos (wchar_t)
+    std::wstring wExpectedValue = convertToWideString(expectedValue);
+    // Abrir la clave del registro para leer el valor de WebEx
+    result = RegOpenKeyEx(HKEY_CURRENT_USER, _T("SOFTWARE\\WebEx\\ProdTools"), 0, KEY_QUERY_VALUE, &hKey);
+    if (result == ERROR_SUCCESS) {
+        result = RegQueryValueEx(hKey, _T("OfficialSiteName"), nullptr, nullptr, (LPBYTE)webexValue, &size);
+        if (result == ERROR_SUCCESS) {
+            // Comparar cadenas (case-insensitive)
+            if (wcscmp(webexValue, wExpectedValue.c_str()) == 0) {
+                std::wcout << L"La clave del Registro de WebEx coincide: " << webexValue << std::endl;
+                RegCloseKey(hKey);
+                return 1;
+            }
+            else {
+                std::wcout << L"La clave del Registro de WebEx no coincide. Valor actual: " << webexValue << std::endl;
+            }                        
         }
+        else {
+            std::wcerr << L"Error al leer el valor de la clave de WebEx: " << result << std::endl;
+        }
+        RegCloseKey(hKey);
     }
-    return 0; 
+    else {
+        std::wcerr << L"Error al abrir la clave de WebEx en el Registro: " << result << std::endl;
+    }
+
+    return 0;
 }
 
+std::wstring convertToWideString(const std::string& narrowStr) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    return converter.from_bytes(narrowStr);
+}
+
+char* createResult(int a, int b, int c, int d, int e) {
+    // Crear un buffer para almacenar el resultado como cadena
+    char resultBuffer[16];  // Suficientemente grande para almacenar cualquier número entero
+
+    // Construir el número directamente en el buffer
+    int num = 0;
+    num = num * 10 + a;
+    num = num * 10 + b;
+    num = num * 10 + c;
+    num = num * 10 + d;
+    num = num * 10 + e;
+
+    // Utilizar snprintf para formatear el número en el buffer
+    snprintf(resultBuffer, sizeof(resultBuffer), "%05d", num);
+
+    // Copiar el resultado a un nuevo char*
+    char* resultChar = new char[strlen(resultBuffer) + 1];
+    strcpy(resultChar, resultBuffer);
+
+    return resultChar;
+}
