@@ -271,17 +271,14 @@ int checkProgs(char** programs, int numPrograms) {
 
     int numEncontrados = 0;
     for (int i = 0; i < numPrograms; i++) {
-        if (!programasEncontrados[i]) {
-            std::wcout << L"Program not found: " << convertToWideString(programs[i]) << std::endl;
-            free(programasEncontrados);
-            return 0;
+        if (programasEncontrados[i]) {
+            numEncontrados++;
         }
         else {
-            numEncontrados++;
+            std::wcout << L"Program not found: " << convertToWideString(programs[i]) << std::endl;
         }
     }
 
-    std::wcout << L"All programs found." << std::endl;
     free(programasEncontrados);
     return numEncontrados;
 }

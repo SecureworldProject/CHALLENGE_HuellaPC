@@ -1,15 +1,15 @@
 ﻿  pch.cpp
   challenge_huellapc.cpp
-C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\challenge_huellapc.cpp(70,55): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
-C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\challenge_huellapc.cpp(88,49): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
-C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\challenge_huellapc.cpp(102,12): warning C4477: 'printf' : format string '%zu' requires an argument of type 'unsigned __int64', but variadic argument 1 has type 'int'
-C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\challenge_huellapc.cpp(102,12): message : consider using '%u' in the format string
-C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\challenge_huellapc.cpp(102,12): message : consider using '%I32u' in the format string
-C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\challenge_huellapc.cpp(130,23): warning C4018: '<': signed/unsigned mismatch
+C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\challenge_huellapc.cpp(70,55): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\challenge_huellapc.cpp(88,49): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\challenge_huellapc.cpp(102,12): warning C4477: 'printf' : format string '%zu' requires an argument of type 'unsigned __int64', but variadic argument 1 has type 'int'
+C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\challenge_huellapc.cpp(102,12): message : consider using '%u' in the format string
+C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\challenge_huellapc.cpp(102,12): message : consider using '%I32u' in the format string
+C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\challenge_huellapc.cpp(130,23): warning C4018: '<': signed/unsigned mismatch
   dllmain.cpp
-     Creating library C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\x64\Release\CHALLENGE_huellaPC.lib and object C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\x64\Release\CHALLENGE_huellaPC.exp
+     Creating library C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\x64\Release\CHALLENGE_huellaPC.lib and object C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\x64\Release\CHALLENGE_huellaPC.exp
   Generating code
   Previous IPDB not found, fall back to full compilation.
   All 223 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   Finished generating code
-  CHALLENGE_huellaPC.vcxproj -> C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\x64\Release\CHALLENGE_huellaPC.dll
+  CHALLENGE_huellaPC.vcxproj -> C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\x64\Release\CHALLENGE_huellaPC.dll

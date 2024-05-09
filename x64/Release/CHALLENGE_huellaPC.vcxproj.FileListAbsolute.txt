@@ -1,1 +1,2 @@
 C:\Users\guerrero\VisualStudio\source\SECUREWORLD\CHALLENGE_huellaPC\x64\Release\CHALLENGE_huellaPC.dll
+C:\Users\guerrero\GitHub\CHALLENGE_HuellaPC\x64\Release\CHALLENGE_huellaPC.dll

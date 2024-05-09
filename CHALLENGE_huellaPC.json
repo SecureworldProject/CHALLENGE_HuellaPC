@@ -4,17 +4,17 @@
 	"Props": {
 		"validity_time": 3600,
 		"refresh_time": 3000,
-		"programs":
-			[
-				"ccSvcHst.exe",
-				"ibmpmsvc.exe",
-				"SCClient.exe"
-			],
 		"domain":"nsn-intra.net",
 		"sufix":"nsn-intra.net",
 		"webex":"nokiameetings",
-		"font":"Nokia Pure Headline (TrueType)"
-
+		"font":"Nokia Pure Headline (TrueType)",
+		"programs":
+			[
+				"csc_ui.exe",
+				"Teams.exe",
+				"MakeMeAdminService.exe",
+				"nxtcoordinator.exe"
+			]
 	},
 	"Requirements": "none"
 }
